@@ -188,7 +188,7 @@ public class RoutingFunction implements Function<Object, Object> {
 	}
 
 	@SuppressWarnings("rawtypes")
-	private Function functionFromExpression(String routingExpression, Object input, boolean isViaHeader)) {
+	private Function functionFromExpression(String routingExpression, Object input, boolean isViaHeader) {
 		Expression expression = spelParser.parseExpression(routingExpression);
 
 		String functionName = isViaHeader ? expression.getValue(this.headerEvalContext, input, String.class) : expression.getValue(this.evalContext, input, String.class);
