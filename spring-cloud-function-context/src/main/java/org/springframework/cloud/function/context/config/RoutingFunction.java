@@ -33,6 +33,8 @@ import org.springframework.context.expression.MapAccessor;
 import org.springframework.expression.BeanResolver;
 import org.springframework.expression.Expression;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
+import org.springframework.expression.spel.support.DataBindingPropertyAccessor;
+import org.springframework.expression.spel.support.SimpleEvaluationContext;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.messaging.Message;
 import org.springframework.util.Assert;
@@ -57,6 +59,9 @@ public class RoutingFunction implements Function<Object, Object> {
 	private static Log logger = LogFactory.getLog(RoutingFunction.class);
 
 	private final StandardEvaluationContext evalContext = new StandardEvaluationContext();
+
+	private final SimpleEvaluationContext headerEvalContext = SimpleEvaluationContext
+		.forPropertyAccessors(DataBindingPropertyAccessor.forReadOnlyAccess()).build();
 
 	private final SpelExpressionParser spelParser = new SpelExpressionParser();
 
@@ -109,7 +114,7 @@ public class RoutingFunction implements Function<Object, Object> {
 				}
 			}
 			else if (StringUtils.hasText((String) message.getHeaders().get("spring.cloud.function.routing-expression"))) {
-				function = this.functionFromExpression((String) message.getHeaders().get("spring.cloud.function.routing-expression"), message);
+				function = this.functionFromExpression((String) message.getHeaders().get("spring.cloud.function.routing-expression"), message, true);
 				Type functionType = functionInspector.getRegistration(function).getType().getType();
 				if (FunctionTypeUtils.isReactive(FunctionTypeUtils.getInputType(functionType, 0))) {
 					this.assertOriginalInputIsNotPublisher(originalInputIsPublisher);
@@ -179,9 +184,14 @@ public class RoutingFunction implements Function<Object, Object> {
 
 	@SuppressWarnings("rawtypes")
 	private Function functionFromExpression(String routingExpression, Object input) {
+		return functionFromExpression(routingExpression, input, false);
+	}
+
+	@SuppressWarnings("rawtypes")
+	private Function functionFromExpression(String routingExpression, Object input, boolean isViaHeader)) {
 		Expression expression = spelParser.parseExpression(routingExpression);
 
-		String functionName = expression.getValue(this.evalContext, input, String.class);
+		String functionName = isViaHeader ? expression.getValue(this.headerEvalContext, input, String.class) : expression.getValue(this.evalContext, input, String.class);
 		Assert.hasText(functionName, "Failed to resolve function name based on routing expression '" + functionProperties.getRoutingExpression() + "'");
 		Function function = functionCatalog.lookup(functionName);
 		Assert.notNull(function, "Failed to lookup function to route to based on the expression '"
